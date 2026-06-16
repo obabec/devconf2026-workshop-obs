@@ -51,7 +51,7 @@ endef
 
 .PHONY: prepull load-images install install-deps install-mimir install-tempo \
         install-grafana-operator install-grafana start \
-        port-forward stop-port-forward \
+        alloy-reload port-forward stop-port-forward \
         challenge-1 challenge-2 challenge-3 challenge-4 challenge-5 challenge-6 \
         reset clean uninstall help
 
@@ -112,6 +112,9 @@ install-grafana: ## Apply Grafana CR, datasources and dashboards
 	kubectl apply -n grafana -f kubernetes/grafana/datasources.yaml
 	kubectl apply -n grafana -f kubernetes/grafana/coffee-shop-dashboard.yaml
 	kubectl -n grafana rollout status deployment/grafana-deployment --timeout=3m
+
+alloy-reload: ## Hot-reload Alloy config without restarting the container
+	curl -X POST http://localhost:12345/-/reload
 
 start: ## Start coffee shop with the working Alloy config
 	$(call use_alloy_config,$(ALLOY_WORKING))
