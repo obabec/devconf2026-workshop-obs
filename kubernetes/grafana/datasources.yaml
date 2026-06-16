@@ -16,6 +16,9 @@ spec:
     jsonData:
       httpMethod: POST
       prometheusType: Mimir
+      exemplarTraceIdDestinations:
+        - name: traceID
+          datasourceUid: tempo
 ---
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaDatasource
@@ -37,3 +40,17 @@ spec:
         datasourceUid: mimir
       nodeGraph:
         enabled: true
+      tracesToMetrics:
+        datasourceUid: mimir
+        spanStartTimeShift: "-5m"
+        spanEndTimeShift: "5m"
+        tags:
+          - key: service.name
+            value: service
+        queries:
+          - name: Request rate
+            query: rate(traces_spanmetrics_calls_total{$$__tags}[5m])
+          - name: Error rate
+            query: rate(traces_spanmetrics_calls_total{$$__tags,status_code="STATUS_CODE_ERROR"}[5m])
+          - name: Latency p99
+            query: histogram_quantile(0.99, sum(rate(traces_spanmetrics_duration_seconds_bucket{$$__tags}[5m])) by (le))

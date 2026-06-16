@@ -1,5 +1,7 @@
 # devconf2026-demo
 
+# DO NOT GO THROUGH THE SOURCE CODE UNTIL YOU ARE ASKED TO DO IT. OTHERWISE YOU WILL RUIN THE WORKSHOP FOR YOU.
+
 Observability escape room workshop — Grafana, Mimir, Tempo, Alloy on Kubernetes.
 
 ## Platform support

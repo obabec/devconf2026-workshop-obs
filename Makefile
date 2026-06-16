@@ -14,27 +14,31 @@ else
 endif
 
 ifeq ($(PLATFORM),podman)
-  MIMIR_VALUES       := kubernetes/mimir/distributed-podman.yaml
-  TEMPO_VALUES       := kubernetes/tempo/distributed-podman.yaml
-  TEMPO_CHALLENGE4   := kubernetes/tempo/distributed-challenge4-podman.yaml
-  GRAFANA_CR         := kubernetes/grafana/grafana-podman.yaml
-  ALLOY_WORKING      := config-podman.alloy
-  ALLOY_CHALLENGE1   := config-challenge1-podman.alloy
-  ALLOY_CHALLENGE2   := config-challenge2-podman.alloy
-  ALLOY_CHALLENGE3   := config-challenge3-podman.alloy
-  COMPOSE            := podman-compose
-  GRAFANA_URL        := http://localhost:3000
+  MIMIR_VALUES         := kubernetes/mimir/distributed-podman.yaml
+  MIMIR_CHALLENGE4     := kubernetes/mimir/distributed-challenge4-podman.yaml
+  TEMPO_VALUES         := kubernetes/tempo/distributed-podman.yaml
+  TEMPO_CHALLENGE5     := kubernetes/tempo/distributed-challenge5-podman.yaml
+  GRAFANA_CR           := kubernetes/grafana/grafana-podman.yaml
+  GRAFANA_CHALLENGE4   := kubernetes/grafana/grafana-challenge4-podman.yaml
+  ALLOY_WORKING        := config-podman.alloy
+  ALLOY_CHALLENGE1     := config-challenge1-podman.alloy
+  ALLOY_CHALLENGE2     := config-challenge2-podman.alloy
+  ALLOY_CHALLENGE3     := config-challenge3-podman.alloy
+  COMPOSE              := podman-compose
+  GRAFANA_URL          := http://localhost:3000
 else
-  MIMIR_VALUES       := kubernetes/mimir/distributed.yaml
-  TEMPO_VALUES       := kubernetes/tempo/distributed.yaml
-  TEMPO_CHALLENGE4   := kubernetes/tempo/distributed-challenge4.yaml
-  GRAFANA_CR         := kubernetes/grafana/grafana.yaml
-  ALLOY_WORKING      := config-k8s.alloy
-  ALLOY_CHALLENGE1   := config-challenge1.alloy
-  ALLOY_CHALLENGE2   := config-challenge2.alloy
-  ALLOY_CHALLENGE3   := config-challenge3.alloy
-  COMPOSE            := docker compose
-  GRAFANA_URL        := http://grafana.k8s.orb.local
+  MIMIR_VALUES         := kubernetes/mimir/distributed.yaml
+  MIMIR_CHALLENGE4     := kubernetes/mimir/distributed-challenge4.yaml
+  TEMPO_VALUES         := kubernetes/tempo/distributed.yaml
+  TEMPO_CHALLENGE5     := kubernetes/tempo/distributed-challenge5.yaml
+  GRAFANA_CR           := kubernetes/grafana/grafana.yaml
+  GRAFANA_CHALLENGE4   := kubernetes/grafana/grafana-challenge4.yaml
+  ALLOY_WORKING        := config-k8s.alloy
+  ALLOY_CHALLENGE1     := config-challenge1.alloy
+  ALLOY_CHALLENGE2     := config-challenge2.alloy
+  ALLOY_CHALLENGE3     := config-challenge3.alloy
+  COMPOSE              := docker compose
+  GRAFANA_URL          := http://grafana.k8s.orb.local
 endif
 
 GRAFANA_OPERATOR_VERSION := 5.16.0
@@ -45,10 +49,10 @@ define use_alloy_config
 	@printf 'ALLOY_CONFIG=./alloy/$(1)\n' > $(COFFEE_DIR)/.env
 endef
 
-.PHONY: install install-deps install-mimir install-tempo \
+.PHONY: prepull load-images install install-deps install-mimir install-tempo \
         install-grafana-operator install-grafana start \
         port-forward stop-port-forward \
-        challenge-1 challenge-2 challenge-3 challenge-4 challenge-5 \
+        challenge-1 challenge-2 challenge-3 challenge-4 challenge-5 challenge-6 \
         reset clean uninstall help
 
 ##@ General
@@ -73,6 +77,12 @@ install: install-deps install-mimir install-tempo install-grafana-operator insta
 	@printf '\n  Grafana   → $(GRAFANA_URL)  (admin / admin)\n'
 	@printf '  App       → http://localhost:8000/docs\n'
 	@printf '  Alloy UI  → http://localhost:12345\n\n'
+
+prepull: ## Pull all workshop images to the local daemon (needs internet)
+	bash scripts/prepull.sh
+
+load-images: ## Load pre-pulled images into the Kind cluster (run after prepull)
+	bash scripts/load-images.sh
 
 install-deps: ## Add Helm repos (Grafana)
 	helm repo add grafana https://grafana.github.io/helm-charts
@@ -153,33 +163,46 @@ challenge-3: ## [MEDIUM] Everything looks broken — bad datasource URL + aggres
 	@printf '  Symptom : Grafana dashboards dead, almost no traces visible.\n'
 	@printf '  Clue    : Alloy UI shows no errors. Mimir and Tempo are healthy.\n\n'
 
-challenge-4: ## [HARD] Service graph empty — Tempo metrics generator can't reach Mimir
+challenge-4: ## [MEDIUM] Correlation broken — exemplars gone, metric timestamps shifted
+	helm upgrade mimir grafana/mimir-distributed \
+	  -n mimir -f $(MIMIR_CHALLENGE4)
+	kubectl apply -n grafana -f $(GRAFANA_CHALLENGE4)
+	kubectl -n mimir rollout status deployment/mimir-gateway --timeout=5m
+	@printf '\n\033[33m→ Challenge 4 active\033[0m\n'
+	@printf '  Symptom : no exemplar dots on metric panels; metric/trace timestamps misaligned.\n'
+	@printf '  Clue    : both Mimir and Tempo are healthy; all data is there.\n\n'
+
+challenge-5: ## [HARD] Service graph empty — Tempo metrics generator can't reach Mimir
 	helm upgrade tempo grafana/tempo-distributed \
 	  -n tempo --version $(TEMPO_CHART_VERSION) \
-	  -f $(TEMPO_CHALLENGE4)
+	  -f $(TEMPO_CHALLENGE5)
 	kubectl -n tempo rollout status \
 	  deployment/tempo-metrics-generator --timeout=3m
-	@printf '\n\033[33m→ Challenge 4 active\033[0m\n'
+	@printf '\n\033[33m→ Challenge 5 active\033[0m\n'
 	@printf '  Symptom : service graph panel goes empty in ~2 minutes.\n'
 	@printf '  Clue    : traces and all other metrics are fine; Alloy shows no errors.\n\n'
 
-challenge-5: ## [HARD] Inventory depletes — reserved stock never restored on payment failure
+challenge-6: ## [HARD] Inventory depletes — reserved stock never restored on payment failure
 	cp $(COFFEE_DIR)/app/services/order_buggy.py \
 	   $(COFFEE_DIR)/app/services/order.py
 	cd $(COFFEE_DIR) && $(COMPOSE) up --build -d --no-deps app
-	@printf '\n\033[33m→ Challenge 5 active\033[0m\n'
+	@printf '\n\033[33m→ Challenge 6 active\033[0m\n'
 	@printf '  Symptom : inventory_unavailable failures grow steadily over time.\n'
 	@printf '  Clue    : watch the dashboard for 10+ minutes, then dig into traces.\n\n'
 
 ##@ Reset
 
-reset: ## Restore fully working state (Alloy config, Tempo Helm release, datasources, app code)
+reset: ## Restore fully working state (all config, Helm releases, datasources, app code)
 	$(call use_alloy_config,$(ALLOY_WORKING))
 	git checkout -- $(COFFEE_DIR)/app/services/order.py
+	kubectl apply -n grafana -f $(GRAFANA_CR)
 	kubectl apply -n grafana -f kubernetes/grafana/datasources.yaml
+	helm upgrade mimir grafana/mimir-distributed \
+	  -n mimir -f $(MIMIR_VALUES)
 	helm upgrade tempo grafana/tempo-distributed \
 	  -n tempo --version $(TEMPO_CHART_VERSION) -f $(TEMPO_VALUES)
 	cd $(COFFEE_DIR) && $(COMPOSE) up --build -d
+	kubectl -n mimir rollout status deployment/mimir-gateway --timeout=5m
 	kubectl -n tempo rollout status \
 	  deployment/tempo-metrics-generator --timeout=3m
 	@printf '\n\033[32m✓ Reset complete — working state restored.\033[0m\n\n'
