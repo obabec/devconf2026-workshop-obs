@@ -1,0 +1,4 @@
+ingress:
+  enabled: true
+  hosts:
+    - mimir.k8s.orb.local

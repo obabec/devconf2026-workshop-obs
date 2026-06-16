@@ -1,0 +1,25 @@
+metaMonitoring:
+  serviceMonitor:
+    enabled: false
+
+mimir:
+  structuredConfig:
+    multitenancy_enabled: false
+
+    blocks_storage:
+      backend: filesystem
+      filesystem:
+        dir: /data/tsdb
+
+    limits:
+      ingestion_rate: 10000
+      max_global_series_per_user: 100000
+
+alertmanager:
+  enabled: false
+
+ruler:
+  enabled: false
+
+minio:
+  enabled: true

@@ -1,0 +1,144 @@
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: coffee-shop
+  namespace: grafana
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+  json: |
+    {
+      "title": "Coffee Shop",
+      "uid": "coffee-shop",
+      "tags": ["coffee-shop"],
+      "schemaVersion": 39,
+      "time": { "from": "now-30m", "to": "now" },
+      "refresh": "10s",
+      "panels": [
+        {
+          "id": 1,
+          "title": "Order Rate",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 0, "w": 8, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "mimir" },
+          "targets": [
+            {
+              "expr": "sum by (status) (rate(orders_created_total[1m]))",
+              "legendFormat": "{{status}}"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Order Latency",
+          "type": "timeseries",
+          "gridPos": { "x": 8, "y": 0, "w": 8, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "mimir" },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.99, sum by (le, status) (rate(order_latency_ms_bucket[1m])))",
+              "legendFormat": "p99 {{status}}"
+            },
+            {
+              "expr": "histogram_quantile(0.50, sum by (le, status) (rate(order_latency_ms_bucket[1m])))",
+              "legendFormat": "p50 {{status}}"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Payment Latency",
+          "type": "timeseries",
+          "gridPos": { "x": 16, "y": 0, "w": 8, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "mimir" },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.99, sum by (le, status) (rate(payment_latency_ms_bucket[1m])))",
+              "legendFormat": "p99 {{status}}"
+            },
+            {
+              "expr": "histogram_quantile(0.50, sum by (le, status) (rate(payment_latency_ms_bucket[1m])))",
+              "legendFormat": "p50 {{status}}"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Total Orders",
+          "type": "stat",
+          "gridPos": { "x": 0, "y": 8, "w": 4, "h": 4 },
+          "datasource": { "type": "prometheus", "uid": "mimir" },
+          "targets": [
+            {
+              "expr": "sum(orders_created_total)",
+              "legendFormat": "total"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "Failed Orders",
+          "type": "stat",
+          "gridPos": { "x": 4, "y": 8, "w": 4, "h": 4 },
+          "datasource": { "type": "prometheus", "uid": "mimir" },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "red", "value": 1 }
+                ]
+              }
+            }
+          },
+          "targets": [
+            {
+              "expr": "sum(orders_failed_total)",
+              "legendFormat": "failed"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "title": "Failure Reasons",
+          "type": "piechart",
+          "gridPos": { "x": 8, "y": 8, "w": 8, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "mimir" },
+          "targets": [
+            {
+              "expr": "sum by (reason) (orders_failed_total)",
+              "legendFormat": "{{reason}}"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "title": "Service Graph",
+          "type": "nodeGraph",
+          "gridPos": { "x": 16, "y": 8, "w": 8, "h": 8 },
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "targets": [
+            {
+              "queryType": "serviceMap",
+              "serviceMapQuery": "{}"
+            }
+          ]
+        },
+        {
+          "id": 8,
+          "title": "Slow Traces (>1s)",
+          "type": "table",
+          "gridPos": { "x": 0, "y": 16, "w": 24, "h": 8 },
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "targets": [
+            {
+              "queryType": "traceql",
+              "query": "{ resource.service.name = \"coffee-shop\" && duration > 1s }",
+              "limit": 20
+            }
+          ]
+        }
+      ]
+    }

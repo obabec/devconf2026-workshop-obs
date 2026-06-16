@@ -1,0 +1,39 @@
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDatasource
+metadata:
+  name: mimir
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+  datasource:
+    uid: mimir
+    name: Mimir
+    type: prometheus
+    access: proxy
+    url: http://mimir-gateway.mimir.svc/api/v1
+    isDefault: true
+    jsonData:
+      httpMethod: POST
+      prometheusType: Mimir
+---
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDatasource
+metadata:
+  name: tempo
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+  datasource:
+    uid: tempo
+    name: Tempo
+    type: tempo
+    access: proxy
+    url: http://tempo-query-frontend.tempo.svc:3200
+    jsonData:
+      httpMethod: GET
+      serviceMap:
+        datasourceUid: mimir
+      nodeGraph:
+        enabled: true

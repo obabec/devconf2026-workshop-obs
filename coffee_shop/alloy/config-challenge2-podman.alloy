@@ -1,0 +1,41 @@
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    traces  = [otelcol.processor.batch.default.input]
+    metrics = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  timeout = "5s"
+
+  output {
+    traces  = [otelcol.exporter.otlphttp.tempo.input]
+    metrics = [otelcol.exporter.otlphttp.mimir.input]
+  }
+}
+
+otelcol.exporter.otlphttp "tempo" {
+  client {
+    endpoint = "http://observability-host:3200"
+    tls {
+      insecure = true
+    }
+  }
+}
+
+// BUG: wrong port and missing X-Scope-OrgID header
+otelcol.exporter.otlphttp "mimir" {
+  client {
+    endpoint = "http://observability-host:9010/otlp"
+    tls {
+      insecure = true
+    }
+  }
+}

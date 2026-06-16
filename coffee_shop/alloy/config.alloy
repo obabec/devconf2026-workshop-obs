@@ -1,0 +1,53 @@
+// ──────────────────────────────────────────
+// Receive OTLP from the coffee shop app
+// ──────────────────────────────────────────
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    traces  = [otelcol.processor.batch.default.input]
+    metrics = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  timeout = "5s"
+
+  output {
+    traces  = [otelcol.exporter.otlp.tempo.input]
+    metrics = [otelcol.exporter.otlphttp.mimir.input]
+  }
+}
+
+// ──────────────────────────────────────────
+// Export traces → Tempo
+// BUG 1: wrong port — Tempo's OTLP gRPC listens on 4317, not 3200 (that's the HTTP query API)
+// Fix: change endpoint to "<TEMPO_OTLP_GRPC_ENDPOINT>"
+// ──────────────────────────────────────────
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "<TEMPO_OTLP_GRPC_ENDPOINT>:3200"
+    tls {
+      insecure = true
+    }
+  }
+}
+
+// ──────────────────────────────────────────
+// Export metrics → Mimir via OTLP HTTP
+// BUG 2: wrong port — Mimir listens on 8080, not 9009
+// Fix: change endpoint to "http://<MIMIR_ENDPOINT>/otlp"
+// ──────────────────────────────────────────
+otelcol.exporter.otlphttp "mimir" {
+  client {
+    endpoint = "http://<MIMIR_ENDPOINT>:9009/otlp"
+    tls {
+      insecure = true
+    }
+  }
+}

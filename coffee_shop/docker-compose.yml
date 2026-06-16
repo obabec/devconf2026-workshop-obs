@@ -1,0 +1,31 @@
+networks:
+  observability:
+    driver: bridge
+
+services:
+  alloy:
+    image: grafana/alloy:v1.4.0
+    container_name: coffee-shop-alloy
+    command: run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy
+    volumes:
+      - ${ALLOY_CONFIG:-./alloy/config-k8s.alloy}:/etc/alloy/config.alloy:ro
+    ports:
+      - "4317:4317"    # OTLP gRPC
+      - "4318:4318"    # OTLP HTTP
+      - "12345:12345"  # Alloy UI
+    extra_hosts:
+      - "mimir.k8s.orb.local:192.168.139.2"
+      - "tempo-gateway.k8s.orb.local:192.168.139.2"
+      - "observability-host:host-gateway"
+    networks:
+      - observability
+    restart: unless-stopped
+
+  load-generator:
+    build: ./load-generator
+    container_name: coffee-shop-load-generator
+    environment:
+      APP_URL: ${APP_URL:-http://app:8000}
+    networks:
+      - observability
+    restart: unless-stopped

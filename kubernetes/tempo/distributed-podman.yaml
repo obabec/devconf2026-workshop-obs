@@ -1,0 +1,32 @@
+traces:
+  otlp:
+    grpc:
+      enabled: true
+    http:
+      enabled: true
+
+metricsGenerator:
+  enabled: true
+  config:
+    storage:
+      remote_write:
+        - url: http://mimir-gateway.mimir.svc/api/v1/push
+    processor:
+      service_graphs:
+        dimensions: []
+      span_metrics:
+        dimensions: []
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors:
+        - service-graphs
+        - span-metrics
+
+storage:
+  trace:
+    backend: local
+
+gateway:
+  enabled: true

@@ -1,0 +1,93 @@
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: observability-sanity-test-dashboard
+  namespace: grafana
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+  json: |
+    {
+      "title": "Test Dashboard",
+      "uid": "test-dashboard",
+      "tags": ["test"],
+      "schemaVersion": 39,
+      "time": { "from": "now-30m", "to": "now" },
+      "refresh": "10s",
+      "panels": [
+        {
+          "id": 1,
+          "title": "Request Rate",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "mimir" },
+          "targets": [
+            {
+              "expr": "rate(test_requests_total[1m])",
+              "legendFormat": "{{status}}"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Latency (ms)",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "mimir" },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.99, sum by (le, endpoint) (rate(test_latency_ms_bucket[1m])))",
+              "legendFormat": "p99 {{endpoint}}"
+            },
+            {
+              "expr": "histogram_quantile(0.50, sum by (le, endpoint) (rate(test_latency_ms_bucket[1m])))",
+              "legendFormat": "p50 {{endpoint}}"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Total Requests",
+          "type": "stat",
+          "gridPos": { "x": 0, "y": 8, "w": 6, "h": 4 },
+          "datasource": { "type": "prometheus", "uid": "mimir" },
+          "targets": [
+            {
+              "expr": "sum(test_requests_total)",
+              "legendFormat": "requests"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Traces - Service Graph",
+          "type": "nodeGraph",
+          "gridPos": { "x": 6, "y": 8, "w": 18, "h": 12 },
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "targets": [
+            {
+              "queryType": "serviceMap",
+              "serviceMapQuery": "{}"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "Traces - Search",
+          "type": "table",
+          "gridPos": { "x": 0, "y": 20, "w": 24, "h": 8 },
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "targets": [
+            {
+              "queryType": "traceql",
+              "query": "{ resource.service.name =~ \"frontend|api|database\" }",
+              "limit": 20
+            }
+          ],
+          "transformations": [
+            { "id": "organize", "options": {} }
+          ]
+        }
+      ]
+    }
