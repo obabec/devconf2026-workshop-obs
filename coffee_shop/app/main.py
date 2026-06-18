@@ -10,6 +10,7 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+from opentelemetry.sdk.metrics._internal.exemplar.exemplar_filter import TraceBasedExemplarFilter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 from models import OrderRequest, OrderResponse, PaymentRequest, PaymentResponse
@@ -35,7 +36,8 @@ meter_provider = MeterProvider(
             OTLPMetricExporter(endpoint=f"{OTEL_ENDPOINT}/v1/metrics"),
             export_interval_millis=5000,
         )
-    ]
+    ],
+    exemplar_filter=TraceBasedExemplarFilter(),
 )
 metrics.set_meter_provider(meter_provider)
 

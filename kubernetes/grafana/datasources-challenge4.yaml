@@ -11,14 +11,11 @@ spec:
     name: Mimir
     type: prometheus
     access: proxy
-    url: http://mimir-gateway.mimir.svc/api/v1
+    url: http://mimir-gateway.mimir.svc/prometheus
     isDefault: true
     jsonData:
       httpMethod: POST
       prometheusType: Mimir
-      exemplarTraceIdDestinations:
-        - name: trace_id
-          datasourceUid: tempo
 ---
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaDatasource

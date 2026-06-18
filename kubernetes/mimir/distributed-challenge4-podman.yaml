@@ -4,4 +4,4 @@ ingress:
 mimir:
   structuredConfig:
     limits:
-      max_exemplars: 0
+      max_global_exemplars_per_user: 100000

@@ -38,11 +38,13 @@ spec:
           "targets": [
             {
               "expr": "histogram_quantile(0.99, sum by (le, status) (rate(order_latency_ms_bucket[1m])))",
-              "legendFormat": "p99 {{status}}"
+              "legendFormat": "p99 {{status}}",
+              "exemplar": true
             },
             {
               "expr": "histogram_quantile(0.50, sum by (le, status) (rate(order_latency_ms_bucket[1m])))",
-              "legendFormat": "p50 {{status}}"
+              "legendFormat": "p50 {{status}}",
+              "exemplar": true
             }
           ]
         },
@@ -55,11 +57,13 @@ spec:
           "targets": [
             {
               "expr": "histogram_quantile(0.99, sum by (le, status) (rate(payment_latency_ms_bucket[1m])))",
-              "legendFormat": "p99 {{status}}"
+              "legendFormat": "p99 {{status}}",
+              "exemplar": true
             },
             {
               "expr": "histogram_quantile(0.50, sum by (le, status) (rate(payment_latency_ms_bucket[1m])))",
-              "legendFormat": "p50 {{status}}"
+              "legendFormat": "p50 {{status}}",
+              "exemplar": true
             }
           ]
         },

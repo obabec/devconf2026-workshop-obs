@@ -49,9 +49,25 @@ define use_alloy_config
 	@printf 'ALLOY_CONFIG=./alloy/$(1)\n' > $(COFFEE_DIR)/.env
 endef
 
+# Delete datasource CRs, wait for operator to remove them from Grafana, then apply new ones.
+define apply_datasources
+	kubectl delete grafanadatasource -n grafana mimir tempo --ignore-not-found
+	kubectl wait --for=delete grafanadatasource/mimir grafanadatasource/tempo \
+	  -n grafana --timeout=60s 2>/dev/null || true
+	kubectl apply -n grafana -f $(1)
+endef
+
+# Delete dashboard CR, wait for operator to remove it from Grafana, then apply new one.
+define apply_dashboard
+	kubectl delete grafanadashboard -n grafana coffee-shop --ignore-not-found
+	kubectl wait --for=delete grafanadashboard/coffee-shop \
+	  -n grafana --timeout=60s 2>/dev/null || true
+	kubectl apply -n grafana -f $(1)
+endef
+
 .PHONY: prepull load-images install install-deps install-mimir install-tempo \
         install-grafana-operator install-grafana start \
-        alloy-reload port-forward stop-port-forward \
+        ports alloy-reload apply-datasources port-forward stop-port-forward \
         challenge-1 challenge-2 challenge-3 challenge-4 challenge-5 challenge-6 \
         reset clean uninstall help
 
@@ -74,9 +90,12 @@ help: ## Show this help
 
 install: install-deps install-mimir install-tempo install-grafana-operator install-grafana port-forward start ## Full install: Kubernetes stack + start coffee shop
 	@printf '\n\033[32m✓ Done.\033[0m\n'
-	@printf '\n  Grafana   → $(GRAFANA_URL)  (admin / admin)\n'
-	@printf '  App       → http://localhost:8000/docs\n'
-	@printf '  Alloy UI  → http://localhost:12345\n\n'
+	@printf '\n  Grafana        → $(GRAFANA_URL)  (admin / admin)\n'
+	@printf '  App            → http://localhost:8000/docs\n'
+	@printf '  Alloy UI       → http://localhost:12345\n'
+	@printf '  Mimir          → http://localhost:9009   (port-forward → mimir-gateway:80)\n'
+	@printf '  Tempo gateway  → http://localhost:3200   (port-forward → tempo-gateway:80)\n'
+	@printf '\n  Alloy logs     : podman logs coffee-shop-alloy --follow\n\n'
 
 prepull: ## Pull all workshop images to the local daemon (needs internet)
 	bash scripts/prepull.sh
@@ -109,12 +128,23 @@ install-grafana-operator: ## Install Grafana Operator (CRD controller)
 
 install-grafana: ## Apply Grafana CR, datasources and dashboards
 	kubectl apply -n grafana -f $(GRAFANA_CR)
-	kubectl apply -n grafana -f kubernetes/grafana/datasources.yaml
-	kubectl apply -n grafana -f kubernetes/grafana/coffee-shop-dashboard.yaml
 	kubectl -n grafana rollout status deployment/grafana-deployment --timeout=3m
+	$(call apply_datasources,kubernetes/grafana/datasources.yaml)
+	$(call apply_dashboard,kubernetes/grafana/coffee-shop-dashboard.yaml)
+
+ports: ## Show all exposed service URLs and ports
+	@printf '\n  Grafana        → $(GRAFANA_URL)  (admin / admin)\n'
+	@printf '  App            → http://localhost:8000/docs\n'
+	@printf '  Alloy UI       → http://localhost:12345\n'
+	@printf '  Mimir          → http://localhost:9009   (port-forward → mimir-gateway:80)\n'
+	@printf '  Tempo gateway  → http://localhost:3200   (port-forward → tempo-gateway:80)\n'
+	@printf '\n  Alloy logs     : podman logs coffee-shop-alloy --follow\n\n'
 
 alloy-reload: ## Hot-reload Alloy config without restarting the container
 	curl -X POST http://localhost:12345/-/reload
+
+apply-datasources: ## Delete and reapply working Grafana datasources
+	$(call apply_datasources,kubernetes/grafana/datasources.yaml)
 
 start: ## Start coffee shop with the working Alloy config
 	$(call use_alloy_config,$(ALLOY_WORKING))
@@ -149,30 +179,31 @@ challenge-1: ## [EASY] Traces missing — Alloy exporter type wrong for Tempo ga
 	cd $(COFFEE_DIR) && $(COMPOSE) up -d --no-deps alloy
 	@printf '\n\033[33m→ Challenge 1 active\033[0m\n'
 	@printf '  Symptom : traces no longer appear in Tempo.\n'
-	@printf '  Start   : check the Alloy UI at http://localhost:12345\n\n'
+	@printf '  Start   : podman logs coffee-shop-alloy --follow\n\n'
 
 challenge-2: ## [EASY] Metrics missing — wrong Mimir endpoint, no auth header
 	$(call use_alloy_config,$(ALLOY_CHALLENGE2))
 	cd $(COFFEE_DIR) && $(COMPOSE) up -d --no-deps alloy
 	@printf '\n\033[33m→ Challenge 2 active\033[0m\n'
 	@printf '  Symptom : all Grafana metric panels are empty; traces still work.\n'
-	@printf '  Start   : check the Alloy UI at http://localhost:12345\n\n'
+	@printf '  Start   : podman logs coffee-shop-alloy --follow\n\n'
 
 challenge-3: ## [MEDIUM] Everything looks broken — bad datasource URL + aggressive sampling
 	$(call use_alloy_config,$(ALLOY_CHALLENGE3))
 	cd $(COFFEE_DIR) && $(COMPOSE) up -d --no-deps alloy
-	kubectl apply -n grafana -f kubernetes/grafana/datasources-challenge3.yaml
+	$(call apply_datasources,kubernetes/grafana/datasources-challenge3.yaml)
 	@printf '\n\033[33m→ Challenge 3 active\033[0m\n'
 	@printf '  Symptom : Grafana dashboards dead, almost no traces visible.\n'
 	@printf '  Clue    : Alloy UI shows no errors. Mimir and Tempo are healthy.\n\n'
 
-challenge-4: ## [MEDIUM] Correlation broken — exemplars gone, metric timestamps shifted
-	helm upgrade mimir grafana/mimir-distributed \
-	  -n mimir -f $(MIMIR_CHALLENGE4)
+challenge-4: ## [MEDIUM] Correlation broken — exemplar links dead, metric timestamps shifted
 	kubectl apply -n grafana -f $(GRAFANA_CHALLENGE4)
-	kubectl -n mimir rollout status deployment/mimir-gateway --timeout=5m
+	kubectl -n grafana rollout status deployment/grafana-deployment --timeout=3m
+	$(MAKE) port-forward
+	$(call apply_datasources,kubernetes/grafana/datasources-challenge4.yaml)
+	$(call apply_dashboard,kubernetes/grafana/coffee-shop-dashboard.yaml)
 	@printf '\n\033[33m→ Challenge 4 active\033[0m\n'
-	@printf '  Symptom : no exemplar dots on metric panels; metric/trace timestamps misaligned.\n'
+	@printf '  Symptom : exemplar dots appear but clicking them does nothing; metric/trace timestamps misaligned.\n'
 	@printf '  Clue    : both Mimir and Tempo are healthy; all data is there.\n\n'
 
 challenge-5: ## [HARD] Service graph empty — Tempo metrics generator can't reach Mimir
@@ -181,6 +212,7 @@ challenge-5: ## [HARD] Service graph empty — Tempo metrics generator can't rea
 	  -f $(TEMPO_CHALLENGE5)
 	kubectl -n tempo rollout status \
 	  deployment/tempo-metrics-generator --timeout=3m
+	$(MAKE) port-forward
 	@printf '\n\033[33m→ Challenge 5 active\033[0m\n'
 	@printf '  Symptom : service graph panel goes empty in ~2 minutes.\n'
 	@printf '  Clue    : traces and all other metrics are fine; Alloy shows no errors.\n\n'
@@ -199,15 +231,15 @@ reset: ## Restore fully working state (all config, Helm releases, datasources, a
 	$(call use_alloy_config,$(ALLOY_WORKING))
 	git checkout -- $(COFFEE_DIR)/app/services/order.py
 	kubectl apply -n grafana -f $(GRAFANA_CR)
-	kubectl apply -n grafana -f kubernetes/grafana/datasources.yaml
-	helm upgrade mimir grafana/mimir-distributed \
-	  -n mimir -f $(MIMIR_VALUES)
+	kubectl -n grafana rollout status deployment/grafana-deployment --timeout=3m
+	$(call apply_datasources,kubernetes/grafana/datasources.yaml)
+	$(call apply_dashboard,kubernetes/grafana/coffee-shop-dashboard.yaml)
 	helm upgrade tempo grafana/tempo-distributed \
 	  -n tempo --version $(TEMPO_CHART_VERSION) -f $(TEMPO_VALUES)
-	cd $(COFFEE_DIR) && $(COMPOSE) up --build -d
-	kubectl -n mimir rollout status deployment/mimir-gateway --timeout=5m
+	cd $(COFFEE_DIR) && $(COMPOSE) up --build -d --force-recreate
 	kubectl -n tempo rollout status \
 	  deployment/tempo-metrics-generator --timeout=3m
+	$(MAKE) port-forward
 	@printf '\n\033[32m✓ Reset complete — working state restored.\033[0m\n\n'
 
 ##@ Teardown

@@ -17,7 +17,7 @@ spec:
       httpMethod: POST
       prometheusType: Mimir
       exemplarTraceIdDestinations:
-        - name: traceID
+        - name: trace_id
           datasourceUid: tempo
 ---
 apiVersion: grafana.integreatly.org/v1beta1
