@@ -30,7 +30,6 @@ otelcol.exporter.otlphttp "tempo" {
   }
 }
 
-// BUG: wrong port and missing X-Scope-OrgID header
 otelcol.exporter.otlphttp "mimir" {
   client {
     endpoint = "http://observability-host:9010/otlp"

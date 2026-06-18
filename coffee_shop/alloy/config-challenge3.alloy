@@ -12,7 +12,6 @@ otelcol.receiver.otlp "default" {
   }
 }
 
-// BUG: 1% sampling — 99% of traces silently dropped, no errors in UI
 otelcol.processor.probabilistic_sampler "aggressive" {
   sampling_percentage = 1
 

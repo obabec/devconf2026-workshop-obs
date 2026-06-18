@@ -21,7 +21,6 @@ otelcol.processor.batch "default" {
   }
 }
 
-// BUG: using gRPC exporter for a gateway that only speaks HTTP
 otelcol.exporter.otlp "tempo" {
   client {
     endpoint = "observability-host:3200"
